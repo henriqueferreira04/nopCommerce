@@ -6,12 +6,11 @@ services:
             - "80:80"
         depends_on:
             - nopcommerce_database
-            - jaeger
+            - otel-collector
         volumes:
             - nopcommerce_appdata:/app/App_Data
         environment:
-            # Tell OpenTelemetry in the container where to send the data
-            - Otlp__Endpoint=http://jaeger:4317
+            - Otlp__Endpoint=http://otel-collector:4317
     nopcommerce_database:
         image: "mcr.microsoft.com/mssql/server:2019-latest"
         container_name: nopcommerce_mssql_server
@@ -29,8 +28,18 @@ services:
         container_name: jaeger
         ports:
             - "16686:16686" # Jaeger UI
-            - "4317:4317"   # OTLP gRPC receiver
-            - "4318:4318"   # OTLP HTTP receiver
+
+    otel-collector:
+        image: otel/opentelemetry-collector-contrib:latest
+        container_name: otel-collector
+        volumes:
+            - ./otel-collector/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+        ports:
+            - "4317:4317"   # OTLP gRPC
+            - "4318:4318"   # OTLP HTTP
+            - "8889:8889"   # Prometheus metrics
+        depends_on:
+            - jaeger
 
     prometheus:
         image: prom/prometheus:latest

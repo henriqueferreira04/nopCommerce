@@ -46,27 +46,27 @@ public partial class Program
         //add services to the application and configure service provider
         builder.Services.ConfigureApplicationServices(builder);
 
-        var otlpEndpoint = builder.Configuration["Otlp:Endpoint"];
+        var otlpEndpoint = builder.Configuration["Otlp:Endpoint"]
+            ?? throw new InvalidOperationException("Otlp:Endpoint configuration is required. Set it via environment variable Otlp__Endpoint.");
 
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService("nopCommerce"))
             .WithTracing(tracing =>
             {
                 tracing
-                    .AddAspNetCoreInstrumentation()
+                    .AddAspNetCoreInstrumentation(opts =>
+                    {
+                        opts.EnrichWithHttpRequest = (activity, request) =>
+                        {
+                            var route = (request.HttpContext.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText;
+                            activity.DisplayName = $"{request.Method} {route ?? request.Path.Value}";
+                        };
+                    })
                     .AddHttpClientInstrumentation()
                     .AddSqlClientInstrumentation(options => options.SetDbStatementForText = true)
                     .AddSource(NopTelemetry.ActivitySourceName)
-                    .AddSource(NopServicesTelemetry.ActivitySourceName);
-
-                if (!string.IsNullOrEmpty(otlpEndpoint))
-                {
-                    tracing.AddOtlpExporter(opts => { opts.Endpoint = new Uri(otlpEndpoint); });
-                }
-                else
-                {
-                    tracing.AddConsoleExporter();
-                }
+                    .AddSource(NopServicesTelemetry.ActivitySourceName)
+                    .AddOtlpExporter(opts => opts.Endpoint = new Uri(otlpEndpoint));
             })
             .WithMetrics(metrics =>
             {
@@ -75,21 +75,15 @@ public partial class Program
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
                     .AddMeter(NopMetrics.MeterName)
-                    .AddPrometheusExporter();
-
-                if (!string.IsNullOrEmpty(otlpEndpoint))
-                {
-                    metrics.AddOtlpExporter(opts => { opts.Endpoint = new Uri(otlpEndpoint); });
-                }
-                else
-                {
-                    metrics.AddConsoleExporter();
-                }
+                    .AddOtlpExporter((opts, metricOpts) =>
+                    {
+                        opts.Endpoint = new Uri(otlpEndpoint);
+                        metricOpts.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 20_000;
+                    });
             });
 
         var app = builder.Build();
 
-        app.UseOpenTelemetryPrometheusScrapingEndpoint();
         //configure the application HTTP request pipeline
         app.ConfigureRequestPipeline();
         await app.PublishAppStartedEventAsync();
