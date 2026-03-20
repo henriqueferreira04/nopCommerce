@@ -545,9 +545,13 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<CategoryModel> PrepareCategoryModelAsync(Category category, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareCategoryModel");
+
         ArgumentNullException.ThrowIfNull(category);
 
         ArgumentNullException.ThrowIfNull(command);
+
+        activity?.SetTag("category.id", category.Id);
 
         var model = new CategoryModel
         {
@@ -830,9 +834,13 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<ManufacturerModel> PrepareManufacturerModelAsync(Manufacturer manufacturer, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareManufacturerModel");
+
         ArgumentNullException.ThrowIfNull(manufacturer);
 
         ArgumentNullException.ThrowIfNull(command);
+
+        activity?.SetTag("manufacturer.id", manufacturer.Id);
 
         var model = new ManufacturerModel
         {
@@ -1537,7 +1545,7 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<SearchModel> PrepareSearchModelAsync(SearchModel model, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalogue.PrepareSearchModel");
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareSearchModel");
 
         ArgumentNullException.ThrowIfNull(model);
 

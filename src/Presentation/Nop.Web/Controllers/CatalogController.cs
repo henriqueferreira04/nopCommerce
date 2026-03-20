@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Nop.Core;
 using Nop.Core.Domain.Catalog;
-using Nop.Core.Http.Extensions;
 using Nop.Core.Domain.FilterLevels;
 using Nop.Core.Domain.Media;
 using Nop.Core.Domain.Vendors;
@@ -115,6 +114,9 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Category(int categoryId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Category");
+        activity?.SetTag("category.id", categoryId);
+
         var category = await _categoryService.GetCategoryByIdAsync(categoryId);
 
         if (!await CheckCategoryAvailabilityAsync(category))
@@ -139,6 +141,9 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetCategoryProducts(int categoryId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetCategoryProducts");
+        activity?.SetTag("category.id", categoryId);
+
         var category = await _categoryService.GetCategoryByIdAsync(categoryId);
 
         if (!await CheckCategoryAvailabilityAsync(category))
@@ -156,6 +161,9 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Manufacturer(int manufacturerId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Manufacturer");
+        activity?.SetTag("manufacturer.id", manufacturerId);
+
         var manufacturer = await _manufacturerService.GetManufacturerByIdAsync(manufacturerId);
 
         if (!await CheckManufacturerAvailabilityAsync(manufacturer))
@@ -181,6 +189,9 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetManufacturerProducts(int manufacturerId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetManufacturerProducts");
+        activity?.SetTag("manufacturer.id", manufacturerId);
+
         var manufacturer = await _manufacturerService.GetManufacturerByIdAsync(manufacturerId);
 
         if (!await CheckManufacturerAvailabilityAsync(manufacturer))
@@ -205,6 +216,9 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Vendor(int vendorId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Vendor");
+        activity?.SetTag("vendor.id", vendorId);
+
         var vendor = await _vendorService.GetVendorByIdAsync(vendorId);
 
         if (!await CheckVendorAvailabilityAsync(vendor))
@@ -223,6 +237,9 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetVendorProducts(int vendorId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetVendorProducts");
+        activity?.SetTag("vendor.id", vendorId);
+
         var vendor = await _vendorService.GetVendorByIdAsync(vendorId);
 
         if (!await CheckVendorAvailabilityAsync(vendor))
@@ -261,6 +278,9 @@ public partial class CatalogController : BasePublicController
 
     public virtual async Task<IActionResult> ProductsByTag(int productTagId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.ProductsByTag");
+        activity?.SetTag("tag.id", productTagId);
+
         var productTag = await _productTagService.GetProductTagByIdAsync(productTagId);
         if (productTag == null)
             return InvokeHttp404();
@@ -273,6 +293,9 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetTagProducts(int tagId, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetTagProducts");
+        activity?.SetTag("tag.id", tagId);
+
         var productTag = await _productTagService.GetProductTagByIdAsync(tagId);
         if (productTag == null)
             return NotFound();
@@ -295,6 +318,8 @@ public partial class CatalogController : BasePublicController
 
     public virtual async Task<IActionResult> NewProducts(CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.NewProducts");
+
         if (!_catalogSettings.NewProductsEnabled)
             return InvokeHttp404();
 
@@ -309,6 +334,8 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetNewProducts(CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetNewProducts");
+
         if (!_catalogSettings.NewProductsEnabled)
             return NotFound();
 
@@ -373,14 +400,11 @@ public partial class CatalogController : BasePublicController
 
         if (!string.IsNullOrWhiteSpace(model.q))
         {
-            var deviceType = TelemetryHelper.GetDeviceType(HttpContext.Request.Headers.UserAgent.ToString());
-            NopMetrics.SearchPerformed.Add(1,
-                new KeyValuePair<string, object>("device_type", deviceType));
+            NopMetrics.SearchPerformed.Add(1);
 
             if (!model.CatalogProductsModel.Products.Any())
             {
-                NopMetrics.SearchNoResults.Add(1,
-                    new KeyValuePair<string, object>("device_type", deviceType));
+                NopMetrics.SearchNoResults.Add(1);
             }
         }
 
@@ -446,14 +470,11 @@ public partial class CatalogController : BasePublicController
 
         if (!string.IsNullOrWhiteSpace(searchModel.q))
         {
-            var deviceType = TelemetryHelper.GetDeviceType(HttpContext.Request.Headers.UserAgent.ToString());
-            NopMetrics.SearchPerformed.Add(1,
-                new KeyValuePair<string, object>("device_type", deviceType));
+            NopMetrics.SearchPerformed.Add(1);
 
             if (!model.Products.Any())
             {
-                NopMetrics.SearchNoResults.Add(1,
-                    new KeyValuePair<string, object>("device_type", deviceType));
+                NopMetrics.SearchNoResults.Add(1);
             }
         }
 
@@ -536,6 +557,8 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> SearchByFilterLevelValues(SearchFilterLevelValueModel model, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchByFilterLevelValues");
+
         if (!_filterLevelSettings.FilterLevelEnabled)
             return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
         
@@ -550,6 +573,8 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> SearchProductsByFilterLevelValues(SearchFilterLevelValueModel searchModel, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchProductsByFilterLevelValues");
+
         if (searchModel == null)
             searchModel = new SearchFilterLevelValueModel();
 

@@ -353,19 +353,124 @@
       "type": "row"
     },
     {
-      "title": "Recent Traces — nopCommerce",
-      "description": "Live traces from Jaeger. Click a trace ID to drill into the span waterfall: Catalog.Search -> Search.SearchProducts -> Pricing.GetFinalPrice, etc. Use this to pinpoint which span is slow or erroring in a degraded request.",
+      "title": "Recent Traces — Search",
+      "description": "Traces for text search (search box submit, AJAX pagination, autocomplete).",
       "type": "table",
       "id": 11,
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 42 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
       "datasource": { "type": "jaeger", "uid": "jaeger" },
       "targets": [
         {
           "queryType": "search",
           "service": "nopCommerce",
           "operation": "Catalog.Search",
-          "limit": 20,
+          "limit": 10,
           "refId": "A"
+        },
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.SearchProducts",
+          "limit": 10,
+          "refId": "B"
+        },
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.SearchAutoComplete",
+          "limit": 10,
+          "refId": "C"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "title": "Recent Traces — Category & Manufacturer",
+      "description": "Traces for browsing by category and manufacturer.",
+      "type": "table",
+      "id": 20,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.Category",
+          "limit": 10,
+          "refId": "A"
+        },
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.Manufacturer",
+          "limit": 10,
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "title": "Recent Traces — Product Details",
+      "description": "Traces for viewing a product page.",
+      "type": "table",
+      "id": 21,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 50 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.ProductDetails",
+          "limit": 10,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "title": "Recent Traces — Tags, New Products, Vendors & Filters",
+      "description": "Traces for product tags, new products page, vendor browsing, and filter level search.",
+      "type": "table",
+      "id": 22,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 50 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.ProductsByTag",
+          "limit": 5,
+          "refId": "A"
+        },
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.NewProducts",
+          "limit": 5,
+          "refId": "B"
+        },
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.Vendor",
+          "limit": 5,
+          "refId": "C"
+        },
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.SearchByFilterLevelValues",
+          "limit": 5,
+          "refId": "D"
         }
       ],
       "options": {

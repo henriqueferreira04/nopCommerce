@@ -1332,7 +1332,7 @@ public partial class ProductModelFactory : IProductModelFactory
         int? productThumbPictureSize = null, bool prepareSpecificationAttributes = false,
         bool forceRedirectionAfterAddingToCart = false)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalogue.PrepareProductOverview");
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareProductOverview");
 
         ArgumentNullException.ThrowIfNull(products);
 
@@ -1447,7 +1447,11 @@ public partial class ProductModelFactory : IProductModelFactory
     public virtual async Task<ProductDetailsModel> PrepareProductDetailsModelAsync(Product product,
         ShoppingCartItem updatecartitem = null, bool isAssociatedProduct = false)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareProductDetails");
+
         ArgumentNullException.ThrowIfNull(product);
+
+        activity?.SetTag("product.id", product.Id);
 
         //standard properties
         var model = new ProductDetailsModel
