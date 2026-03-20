@@ -419,15 +419,10 @@ public partial class PriceCalculationService : IPriceCalculationService
             return (priceWithoutDiscount, price, appliedDiscountAmount, discounts);
         });
 
-        if (cacheHit)
-        {
-            using var cacheActivity = NopServicesTelemetry.ActivitySource.StartActivity("Pricing.CacheHit");
-            cacheActivity?.SetTag("product.id", product.Id);
-        }
-        else
-        {
+        activity?.SetTag("cache.hit", cacheHit);
+
+        if (!cacheHit)
             NopServicesMetrics.PricingCacheMiss.Add(1);
-        }
 
         return (rezPriceWithoutDiscount, rezPrice, discountAmount, appliedDiscounts);
     }

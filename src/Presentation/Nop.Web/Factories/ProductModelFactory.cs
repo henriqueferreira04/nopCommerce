@@ -1336,8 +1336,6 @@ public partial class ProductModelFactory : IProductModelFactory
 
         ArgumentNullException.ThrowIfNull(products);
 
-        activity?.SetTag("product.count", products.Count());
-
         var models = new List<ProductOverviewModel>();
         foreach (var product in products)
         {
@@ -1375,6 +1373,8 @@ public partial class ProductModelFactory : IProductModelFactory
 
             models.Add(model);
         }
+
+        activity?.SetTag("product.count", models.Count);
 
         return models;
     }

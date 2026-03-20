@@ -1551,8 +1551,6 @@ public partial class CatalogModelFactory : ICatalogModelFactory
 
         ArgumentNullException.ThrowIfNull(command);
 
-        activity?.SetTag("search.query", model.q);
-
         var currentStore = await _storeContext.GetCurrentStoreAsync();
         var categoriesModels = new List<SearchModel.CategoryModel>();
         //all categories
@@ -1655,7 +1653,6 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     public virtual async Task<CatalogProductsModel> PrepareSearchProductsModelAsync(SearchModel searchModel, CatalogProductsCommand command)
     {
         using var activity = NopTelemetry.ActivitySource.StartActivity("Search.PrepareSearchProducts");
-        activity?.SetTag("search.query", searchModel?.q);
 
         ArgumentNullException.ThrowIfNull(command);
 
