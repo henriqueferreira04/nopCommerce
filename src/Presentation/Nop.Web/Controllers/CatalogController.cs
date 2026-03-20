@@ -20,6 +20,7 @@ using Nop.Web.Framework;
 using Nop.Web.Framework.Mvc;
 using Nop.Web.Framework.Mvc.Filters;
 using Nop.Web.Framework.Mvc.Routing;
+using Nop.Web.Infrastructure.Telemetry;
 using Nop.Web.Models.Catalog;
 
 namespace Nop.Web.Controllers;
@@ -360,8 +361,12 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Search(SearchModel model, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Search");
+
         if (model == null)
             model = new SearchModel();
+
+        activity?.SetTag("search.has_query", !string.IsNullOrWhiteSpace(model.q));
 
         model = await _catalogModelFactory.PrepareSearchModelAsync(model, command);
 
@@ -371,6 +376,8 @@ public partial class CatalogController : BasePublicController
     [CheckLanguageSeoCode(ignore: true)]
     public virtual async Task<IActionResult> SearchTermAutoComplete(string term, int categoryId)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchAutoComplete");
+
         if (string.IsNullOrWhiteSpace(term))
             return Content("");
 
@@ -378,6 +385,9 @@ public partial class CatalogController : BasePublicController
 
         if (string.IsNullOrWhiteSpace(term) || term.Length < _catalogSettings.ProductSearchTermMinimumLength)
             return Content("");
+
+        activity?.SetTag("search.term_length", term.Length);
+        activity?.SetTag("search.category_id", categoryId);
 
         //products
         var productNumber = _catalogSettings.ProductSearchAutoCompleteNumberOfProducts > 0 ?
@@ -396,6 +406,8 @@ public partial class CatalogController : BasePublicController
             visibleIndividuallyOnly: true,
             pageSize: productNumber);
 
+        activity?.SetTag("search.results_count", products.TotalCount);
+
         var showLinkToResultSearch = _catalogSettings.ShowLinkToAllResultInSearchAutoComplete && (products.TotalCount > productNumber);
 
         var models = (await _productModelFactory.PrepareProductOverviewModelsAsync(products, false, _catalogSettings.ShowProductImagesInSearchAutoComplete, _mediaSettings.AutoCompleteSearchThumbPictureSize)).ToList();
@@ -409,8 +421,12 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> SearchProducts(SearchModel searchModel, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchProducts");
+
         if (searchModel == null)
             searchModel = new SearchModel();
+
+        activity?.SetTag("search.has_query", !string.IsNullOrWhiteSpace(searchModel.q));
 
         var model = await _catalogModelFactory.PrepareSearchProductsModelAsync(searchModel, command);
 

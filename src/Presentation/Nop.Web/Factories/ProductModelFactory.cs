@@ -29,6 +29,7 @@ using Nop.Services.Stores;
 using Nop.Services.Tax;
 using Nop.Services.Vendors;
 using Nop.Web.Infrastructure.Cache;
+using Nop.Web.Infrastructure.Telemetry;
 using Nop.Web.Models.Catalog;
 using Nop.Web.Models.Common;
 using Nop.Web.Models.Media;
@@ -376,7 +377,11 @@ public partial class ProductModelFactory : IProductModelFactory
     /// </returns>
     protected virtual async Task<ProductPriceModel> PrepareProductPriceModelAsync(Product product, bool addPriceRangeFrom = false, bool forceRedirectionAfterAddingToCart = false)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Pricing.PrepareProductPrice");
+
         ArgumentNullException.ThrowIfNull(product);
+
+        activity?.SetTag("product.id", product.Id);
 
         var currentCurrency = await _workContext.GetWorkingCurrencyAsync();
 
@@ -1327,7 +1332,11 @@ public partial class ProductModelFactory : IProductModelFactory
         int? productThumbPictureSize = null, bool prepareSpecificationAttributes = false,
         bool forceRedirectionAfterAddingToCart = false)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalogue.PrepareProductOverview");
+
         ArgumentNullException.ThrowIfNull(products);
+
+        activity?.SetTag("product.count", products.Count());
 
         var models = new List<ProductOverviewModel>();
         foreach (var product in products)

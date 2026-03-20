@@ -22,6 +22,7 @@ using Nop.Services.Vendors;
 using Nop.Web.Framework.Events;
 using Nop.Web.Framework.Mvc.Routing;
 using Nop.Web.Infrastructure.Cache;
+using Nop.Web.Infrastructure.Telemetry;
 using Nop.Web.Models.Catalog;
 using Nop.Web.Models.Media;
 
@@ -1536,9 +1537,13 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<SearchModel> PrepareSearchModelAsync(SearchModel model, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalogue.PrepareSearchModel");
+
         ArgumentNullException.ThrowIfNull(model);
 
         ArgumentNullException.ThrowIfNull(command);
+
+        activity?.SetTag("search.query", model.q);
 
         var currentStore = await _storeContext.GetCurrentStoreAsync();
         var categoriesModels = new List<SearchModel.CategoryModel>();
@@ -1641,6 +1646,9 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<CatalogProductsModel> PrepareSearchProductsModelAsync(SearchModel searchModel, CatalogProductsCommand command)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Search.PrepareSearchProducts");
+        activity?.SetTag("search.query", searchModel?.q);
+
         ArgumentNullException.ThrowIfNull(command);
 
         var model = new CatalogProductsModel

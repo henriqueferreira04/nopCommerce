@@ -1,7 +1,12 @@
-﻿using Autofac.Extensions.DependencyInjection;
+using Autofac.Extensions.DependencyInjection;
 using Nop.Core.Configuration;
 using Nop.Core.Infrastructure;
 using Nop.Web.Framework.Infrastructure.Extensions;
+using Nop.Services.Infrastructure;
+using Nop.Web.Infrastructure.Telemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace Nop.Web;
 
@@ -40,6 +45,45 @@ public partial class Program
 
         //add services to the application and configure service provider
         builder.Services.ConfigureApplicationServices(builder);
+
+        var otlpEndpoint = builder.Configuration["Otlp:Endpoint"];
+
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("nopCommerce"))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddSqlClientInstrumentation(options => options.SetDbStatementForText = true)
+                    .AddSource(NopTelemetry.ActivitySourceName)
+                    .AddSource(NopServicesTelemetry.ActivitySourceName);
+
+                if (!string.IsNullOrEmpty(otlpEndpoint))
+                {
+                    tracing.AddOtlpExporter(opts => { opts.Endpoint = new Uri(otlpEndpoint); });
+                }
+                else
+                {
+                    tracing.AddConsoleExporter();
+                }
+            })
+            .WithMetrics(metrics =>
+            {
+                metrics
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation();
+
+                if (!string.IsNullOrEmpty(otlpEndpoint))
+                {
+                    metrics.AddOtlpExporter(opts => { opts.Endpoint = new Uri(otlpEndpoint); });
+                }
+                else
+                {
+                    metrics.AddConsoleExporter();
+                }
+            });
 
         var app = builder.Build();
 

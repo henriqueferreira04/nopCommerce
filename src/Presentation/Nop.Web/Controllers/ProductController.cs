@@ -21,6 +21,7 @@ using Nop.Web.Framework;
 using Nop.Web.Framework.Controllers;
 using Nop.Web.Framework.Mvc.Filters;
 using Nop.Web.Framework.Mvc.Routing;
+using Nop.Web.Infrastructure.Telemetry;
 using Nop.Web.Models.Catalog;
 
 namespace Nop.Web.Controllers;
@@ -128,6 +129,9 @@ public partial class ProductController : BasePublicController
 
     public virtual async Task<IActionResult> ProductDetails(int productId, int updatecartitemid = 0, int? customwishlistid = null)
     {
+        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.ProductDetails");
+        activity?.SetTag("product.id", productId);
+
         var product = await _productService.GetProductByIdAsync(productId);
         if (product == null || product.Deleted)
             return InvokeHttp404();
@@ -135,7 +139,7 @@ public partial class ProductController : BasePublicController
         var notAvailable =
             //published?
             (!product.Published && !_catalogSettings.AllowViewUnpublishedProductPage) ||
-            //ACL (access control list) 
+            //ACL (access control list)
             !await _aclService.AuthorizeAsync(product) ||
             //Store mapping
             !await _storeMappingService.AuthorizeAsync(product) ||
@@ -158,6 +162,9 @@ public partial class ProductController : BasePublicController
             var productUrl = await _nopUrlHelper.RouteGenericUrlAsync(parentGroupedProduct);
             return LocalRedirectPermanent(productUrl);
         }
+
+        activity?.SetTag("product.type", product.ProductType.ToString());
+        activity?.SetTag("product.is_available", !notAvailable);
 
         //update existing shopping cart or wishlist  item?
         ShoppingCartItem updatecartitem = null;

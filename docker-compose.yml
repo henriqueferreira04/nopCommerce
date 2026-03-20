@@ -6,13 +6,32 @@ services:
             - "80:80"
         depends_on:
             - nopcommerce_database
+            - jaeger
+        volumes:
+            - nopcommerce_appdata:/app/App_Data
+        environment:
+            # Tell OpenTelemetry in the container where to send the data
+            - Otlp__Endpoint=http://jaeger:4317
     nopcommerce_database:
         image: "mcr.microsoft.com/mssql/server:2019-latest"
         container_name: nopcommerce_mssql_server
+        volumes:
+            - nopcommerce_data:/var/opt/mssql
+        ports:
+            - "1433:1433"
         environment:
             SA_PASSWORD: "nopCommerce_db_password"
             ACCEPT_EULA: "Y"
             MSSQL_PID: "Express"
 
+    jaeger:
+        image: jaegertracing/all-in-one:latest
+        container_name: jaeger
+        ports:
+            - "16686:16686" # Jaeger UI
+            - "4317:4317"   # OTLP gRPC receiver
+            - "4318:4318"   # OTLP HTTP receiver
+
 volumes:
-  nopcommerce_data:            
+  nopcommerce_data:
+  nopcommerce_appdata:            

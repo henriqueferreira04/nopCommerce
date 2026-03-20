@@ -7,6 +7,7 @@ using Nop.Core.Domain.Stores;
 using Nop.Services.Customers;
 using Nop.Services.Directory;
 using Nop.Services.Discounts;
+using Nop.Services.Infrastructure;
 
 namespace Nop.Services.Catalog;
 
@@ -340,7 +341,13 @@ public partial class PriceCalculationService : IPriceCalculationService
         DateTime? rentalStartDate,
         DateTime? rentalEndDate)
     {
+        using var activity = NopServicesTelemetry.ActivitySource.StartActivity("Pricing.GetFinalPrice");
+
         ArgumentNullException.ThrowIfNull(product);
+
+        activity?.SetTag("product.id", product.Id);
+        activity?.SetTag("pricing.include_discounts", includeDiscounts);
+        activity?.SetTag("pricing.quantity", quantity);
 
         var cacheKey = _staticCacheManager.PrepareKeyForDefaultCache(NopCatalogDefaults.ProductPriceCacheKey,
             product,
@@ -361,8 +368,11 @@ public partial class PriceCalculationService : IPriceCalculationService
         decimal discountAmount;
         List<Discount> appliedDiscounts;
 
+        var cacheHit = true;
+
         (rezPriceWithoutDiscount, rezPrice, discountAmount, appliedDiscounts) = await _staticCacheManager.GetAsync(cacheKey, async () =>
         {
+            cacheHit = false;
             var discounts = new List<Discount>();
             var appliedDiscountAmount = decimal.Zero;
 
@@ -408,6 +418,12 @@ public partial class PriceCalculationService : IPriceCalculationService
 
             return (priceWithoutDiscount, price, appliedDiscountAmount, discounts);
         });
+
+        if (cacheHit)
+        {
+            using var cacheActivity = NopServicesTelemetry.ActivitySource.StartActivity("Pricing.CacheHit");
+            cacheActivity?.SetTag("product.id", product.Id);
+        }
 
         return (rezPriceWithoutDiscount, rezPrice, discountAmount, appliedDiscounts);
     }
