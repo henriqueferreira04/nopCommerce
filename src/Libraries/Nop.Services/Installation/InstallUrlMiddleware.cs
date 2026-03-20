@@ -37,6 +37,13 @@ public partial class InstallUrlMiddleware
         //whether database is installed
         if (!DataSettingsManager.IsDatabaseInstalled())
         {
+            //allow the metrics endpoint for Prometheus scraping even without DB
+            if (context.Request.Path.StartsWithSegments("/metrics"))
+            {
+                await _next(context);
+                return;
+            }
+
             var installUrl = $"{webHelper.GetStoreLocation()}{NopInstallationDefaults.InstallPath}";
             if (!webHelper.GetThisPageUrl(false).StartsWith(installUrl, StringComparison.InvariantCultureIgnoreCase))
             {

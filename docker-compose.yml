@@ -32,6 +32,14 @@ services:
             - "4317:4317"   # OTLP gRPC receiver
             - "4318:4318"   # OTLP HTTP receiver
 
+    prometheus:
+        image: prom/prometheus:latest
+        container_name: prometheus
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
 volumes:
   nopcommerce_data:
   nopcommerce_appdata:            

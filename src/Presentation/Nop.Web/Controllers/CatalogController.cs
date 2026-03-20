@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Nop.Core;
 using Nop.Core.Domain.Catalog;
+using Nop.Core.Http.Extensions;
 using Nop.Core.Domain.FilterLevels;
 using Nop.Core.Domain.Media;
 using Nop.Core.Domain.Vendors;
@@ -370,6 +371,19 @@ public partial class CatalogController : BasePublicController
 
         model = await _catalogModelFactory.PrepareSearchModelAsync(model, command);
 
+        if (!string.IsNullOrWhiteSpace(model.q))
+        {
+            var deviceType = TelemetryHelper.GetDeviceType(HttpContext.Request.Headers.UserAgent.ToString());
+            NopMetrics.SearchPerformed.Add(1,
+                new KeyValuePair<string, object>("device_type", deviceType));
+
+            if (!model.CatalogProductsModel.Products.Any())
+            {
+                NopMetrics.SearchNoResults.Add(1,
+                    new KeyValuePair<string, object>("device_type", deviceType));
+            }
+        }
+
         return View(model);
     }
 
@@ -429,6 +443,19 @@ public partial class CatalogController : BasePublicController
         activity?.SetTag("search.has_query", !string.IsNullOrWhiteSpace(searchModel.q));
 
         var model = await _catalogModelFactory.PrepareSearchProductsModelAsync(searchModel, command);
+
+        if (!string.IsNullOrWhiteSpace(searchModel.q))
+        {
+            var deviceType = TelemetryHelper.GetDeviceType(HttpContext.Request.Headers.UserAgent.ToString());
+            NopMetrics.SearchPerformed.Add(1,
+                new KeyValuePair<string, object>("device_type", deviceType));
+
+            if (!model.Products.Any())
+            {
+                NopMetrics.SearchNoResults.Add(1,
+                    new KeyValuePair<string, object>("device_type", deviceType));
+            }
+        }
 
         return PartialView("_ProductsInGridOrLines", model);
     }
