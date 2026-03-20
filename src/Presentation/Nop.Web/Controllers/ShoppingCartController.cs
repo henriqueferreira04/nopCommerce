@@ -698,13 +698,6 @@ public partial class ShoppingCartController : BasePublicController
             return Json(new { redirect = redirectUrl });
         }
 
-        //track add-to-cart metric
-        var userAgent = Request.Headers.UserAgent.ToString();
-        var deviceType = Infrastructure.Telemetry.TelemetryHelper.GetDeviceType(userAgent);
-        Infrastructure.Telemetry.NopMetrics.AddToCart.Add(1,
-            new KeyValuePair<string, object>("source", "search_results"),
-            new KeyValuePair<string, object>("device_type", deviceType));
-
         //added to the cart/wishlist
         switch (cartType)
         {
@@ -875,16 +868,6 @@ public partial class ShoppingCartController : BasePublicController
             updatecartitem.ShoppingCartType;
 
         await SaveItemAsync(updatecartitem, addToCartWarnings, product, cartType, attributes, customerEnteredPriceConverted, rentalStartDate, rentalEndDate, quantity);
-
-        //track add-to-cart metric on success
-        if (!addToCartWarnings.Any())
-        {
-            var userAgent = Request.Headers.UserAgent.ToString();
-            var deviceType = Infrastructure.Telemetry.TelemetryHelper.GetDeviceType(userAgent);
-            Infrastructure.Telemetry.NopMetrics.AddToCart.Add(1,
-                new KeyValuePair<string, object>("source", "product_page"),
-                new KeyValuePair<string, object>("device_type", deviceType));
-        }
 
         //return result
         return await GetProductToCartDetailsAsync(addToCartWarnings, cartType, product, updatecartitem, customwishlistid);

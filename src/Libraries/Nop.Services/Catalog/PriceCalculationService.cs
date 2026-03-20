@@ -424,6 +424,10 @@ public partial class PriceCalculationService : IPriceCalculationService
             using var cacheActivity = NopServicesTelemetry.ActivitySource.StartActivity("Pricing.CacheHit");
             cacheActivity?.SetTag("product.id", product.Id);
         }
+        else
+        {
+            NopServicesMetrics.PricingCacheMiss.Add(1);
+        }
 
         return (rezPriceWithoutDiscount, rezPrice, discountAmount, appliedDiscounts);
     }

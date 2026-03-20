@@ -14,6 +14,4 @@ public static class NopMetrics
     public static readonly Counter<long> SearchNoResults =
         Meter.CreateCounter<long>("search_no_results", description: "Number of search queries that returned zero products");
 
-    public static readonly Counter<long> AddToCart =
-        Meter.CreateCounter<long>("add_to_cart", description: "Number of products added to cart, labeled by source (search_results or product_page)");
 }

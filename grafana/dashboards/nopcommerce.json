@@ -1,0 +1,470 @@
+{
+  "annotations": { "list": [] },
+  "description": "Operations dashboard for the nopCommerce Search → View Product flow. Monitors search index health, pricing cache performance, error rates, and distributed traces.",
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "type": "text",
+      "id": 50,
+      "title": "",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "# nopCommerce — Operations Dashboard\n\nMonitors the health of the **Search → View Product** flow — instrumented with custom metrics and distributed tracing.\n\n| Signal | What it detects | Where to look |\n|--------|----------------|---------------|\n| **No-Results Ratio spike** | Catalog/index/DB degradation hidden behind HTTP 200s | Search Pipeline Health |\n| **Pricing Cache Miss spike** | Cache flush, TTL misconfiguration, or memory eviction — leading indicator for latency increase | Pricing Cache Health |\n| **5xx on flow endpoints** | Flow-specific vs site-wide outage | Flow Error Rate |\n| **Trace drill-down** | Pinpoint slow span in a degraded request | Distributed Traces |"
+      }
+    },
+    {
+      "title": "System Health Overview",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 100,
+      "type": "row"
+    },
+    {
+      "title": "Request Rate",
+      "description": "Total HTTP throughput by method. A sudden drop means the app is unreachable or crashing. POST traffic corresponds to form submissions (search, add-to-cart).",
+      "type": "timeseries",
+      "id": 1,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 20, "lineWidth": 2, "spanNulls": false },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count[1m]))",
+          "legendFormat": "Total",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count[1m])) by (http_request_method)",
+          "legendFormat": "{{http_request_method}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Request Latency (p50 / p95 / p99)",
+      "description": "Response time percentiles. p99 spike with flat p50 = a subset of requests is slow (likely DB queries or cache misses). Sustained p95 increase = systemic degradation.",
+      "type": "timeseries",
+      "id": 2,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "spanNulls": false },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "5xx Error Rate",
+      "description": "Server error rate across all endpoints. First thing to check during an incident. Non-zero sustained = something is throwing exceptions.",
+      "type": "timeseries",
+      "id": 3,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "fillOpacity": 30, "lineWidth": 2, "spanNulls": false },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[1m]))",
+          "legendFormat": "5xx/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Search Pipeline Health",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 101,
+      "type": "row"
+    },
+    {
+      "title": "Search Throughput",
+      "description": "Rate of non-empty search queries hitting CatalogController.Search() and SearchProducts(). Establishes the baseline. A drop means broken search page, deployment issue, or upstream traffic loss.",
+      "type": "timeseries",
+      "id": 4,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "custom": { "fillOpacity": 20, "lineWidth": 2, "spanNulls": false },
+          "unit": "opm"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(search_performed_total[5m]) * 60",
+          "legendFormat": "Searches/min",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "No-Results Ratio",
+      "description": "KEY OPERATIONAL SIGNAL. Ratio of searches returning zero products. Baseline ~10-15%. A spike to 50%+ means catalog data is missing, search index is corrupted, or DB connection is degraded — even though the app still returns HTTP 200. Detects silent failures.",
+      "type": "gauge",
+      "id": 5,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "red", "value": 60 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "(search_no_results_total / search_performed_total) * 100",
+          "legendFormat": "No-results %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Search vs No-Results Over Time",
+      "description": "Overlay of total search rate and no-results rate. Use this to correlate when degradation started — if both lines rise together, it's a traffic spike hitting missing catalog data. If no-results rises while searches stay flat, something broke in the backend.",
+      "type": "timeseries",
+      "id": 6,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 15, "lineWidth": 2, "spanNulls": false },
+          "unit": "opm"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "No results/min" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Searches/min" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "rate(search_performed_total[5m]) * 60",
+          "legendFormat": "Searches/min",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(search_no_results_total[5m]) * 60",
+          "legendFormat": "No results/min",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Pricing Cache Health",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 102,
+      "type": "row"
+    },
+    {
+      "title": "Pricing Cache Miss Rate",
+      "description": "LEADING INDICATOR. Rate of cache misses in GetFinalPrice — the pricing pipeline that runs on every search result and product detail page. A spike means: cache was flushed (deployment), TTL misconfigured, memory pressure evicting entries, or new products flooding in (catalog import). Expect latency to increase shortly after a sustained spike.",
+      "type": "timeseries",
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "orange", "mode": "fixed" },
+          "custom": { "fillOpacity": 20, "lineWidth": 2, "spanNulls": false },
+          "unit": "opm"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(pricing_cache_miss_total[5m]) * 60",
+          "legendFormat": "Cache misses/min",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Cache Misses vs Search Volume",
+      "description": "Overlay of cache misses and search throughput. If both rise together, it's normal — more searches means more pricing calls. If cache misses spike while search volume is flat, the cache is degraded (flush, eviction, TTL issue).",
+      "type": "timeseries",
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 15, "lineWidth": 2, "spanNulls": false },
+          "unit": "opm"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Cache misses/min" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Searches/min" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "rate(pricing_cache_miss_total[5m]) * 60",
+          "legendFormat": "Cache misses/min",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(search_performed_total[5m]) * 60",
+          "legendFormat": "Searches/min",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Flow Error Rate",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 103,
+      "type": "row"
+    },
+    {
+      "title": "5xx — Flow Endpoints vs Total",
+      "description": "Compares 5xx rate on search/product routes against total 5xx. If flow errors spike but total stays flat, the issue is isolated to the instrumented pipeline. If both spike, it's a site-wide outage (DB down, infrastructure issue).",
+      "type": "timeseries",
+      "id": 9,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 25, "lineWidth": 2, "spanNulls": false },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Flow 5xx/s" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Total 5xx/s" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\".*(search|product).*\"}[1m]))",
+          "legendFormat": "Flow 5xx/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[1m]))",
+          "legendFormat": "Total 5xx/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Flow Error Percentage",
+      "description": "Percentage of requests to search/product endpoints returning 5xx. Green <1%, yellow 1-5%, red >5%. A non-zero value here warrants investigation — check the traces section below to find the failing span.",
+      "type": "stat",
+      "id": 10,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\".*(search|product).*\"}[5m])) / sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search|product).*\"}[5m])) * 100",
+          "legendFormat": "Flow error %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Distributed Traces",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 41 },
+      "id": 104,
+      "type": "row"
+    },
+    {
+      "title": "Recent Traces — nopCommerce",
+      "description": "Live traces from Jaeger. Click a trace ID to drill into the span waterfall: Catalog.Search -> Search.SearchProducts -> Pricing.GetFinalPrice, etc. Use this to pinpoint which span is slow or erroring in a degraded request.",
+      "type": "table",
+      "id": 11,
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 42 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "queryType": "search",
+          "service": "nopCommerce",
+          "operation": "Catalog.Search",
+          "limit": 20,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "title": "Runtime Health",
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
+      "id": 105,
+      "type": "row",
+      "panels": [
+        {
+          "title": "GC Heap Size",
+          "description": "Memory used by the .NET GC. A steadily growing heap without plateaus indicates a memory leak. Correlate with deployment times.",
+          "type": "timeseries",
+          "id": 12,
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 53 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "fillOpacity": 15, "lineWidth": 2, "spanNulls": false },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "process_runtime_dotnet_gc_heap_size_bytes",
+              "legendFormat": "Heap size",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "GC Collections",
+          "description": "GC collection rate by generation. Frequent Gen2 collections = memory pressure, possible large object allocation issues.",
+          "type": "timeseries",
+          "id": 13,
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 53 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "spanNulls": false },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "rate(process_runtime_dotnet_gc_collections_count_total[5m])",
+              "legendFormat": "Gen {{generation}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "title": "Thread Pool",
+          "description": "Active threads and work item queue. Growing queue with stable thread count = pool saturation, requests are waiting. May correlate with latency spikes.",
+          "type": "timeseries",
+          "id": 14,
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 53 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": { "fillOpacity": 10, "lineWidth": 2, "spanNulls": false },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "process_runtime_dotnet_thread_pool_threads_count",
+              "legendFormat": "Active threads",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(process_runtime_dotnet_thread_pool_queue_length[5m])",
+              "legendFormat": "Queue length rate",
+              "refId": "B"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["nopcommerce", "operations"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "nopCommerce — Operations",
+  "uid": "nopcommerce-overview",
+  "version": 3
+}
