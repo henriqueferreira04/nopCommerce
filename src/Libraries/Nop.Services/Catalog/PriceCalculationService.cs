@@ -423,6 +423,8 @@ public partial class PriceCalculationService : IPriceCalculationService
 
         if (!cacheHit)
             NopServicesMetrics.PricingCacheMiss.Add(1);
+        else
+            NopServicesMetrics.PricingCacheHit.Add(1);
 
         return (rezPriceWithoutDiscount, rezPrice, discountAmount, appliedDiscounts);
     }

@@ -12,7 +12,7 @@
       "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
       "options": {
         "mode": "markdown",
-        "content": "# nopCommerce — Operations Dashboard\n\nMonitors the health of the **Search → View Product** flow — instrumented with custom metrics and distributed tracing.\n\n| Signal | What it detects | Where to look |\n|--------|----------------|---------------|\n| **No-Results Ratio spike** | Catalog/index/DB degradation hidden behind HTTP 200s | Search Pipeline Health |\n| **Pricing Cache Miss spike** | Cache flush, TTL misconfiguration, or memory eviction — leading indicator for latency increase | Pricing Cache Health |\n| **5xx on flow endpoints** | Flow-specific vs site-wide outage | Flow Error Rate |\n| **Trace drill-down** | Pinpoint slow span in a degraded request | Distributed Traces |"
+        "content": "# nopCommerce — Operations Dashboard\n\nMonitors the health of the **Search → View Product** flow — instrumented with custom metrics and distributed tracing.\n\n| Signal | What it detects | Where to look |\n|--------|----------------|---------------|\n| **No-Results Ratio spike** | Catalog/index/DB degradation hidden behind HTTP 200s | Search Pipeline Health |\n| **Cache Hit Rate drop** | Cache flush, TTL misconfiguration, or memory eviction — leading indicator for latency increase | Pricing Cache Health |\n| **5xx on search/product flow** | Flow-specific vs site-wide outage | Flow Error Rate |\n| **Trace drill-down** | Pinpoint slow span in a degraded request | Distributed Traces |"
       }
     },
     {
@@ -212,55 +212,70 @@
       "type": "row"
     },
     {
-      "title": "Pricing Cache Miss Rate",
-      "description": "LEADING INDICATOR. Rate of cache misses in GetFinalPrice — the pricing pipeline that runs on every search result and product detail page. A spike means: cache was flushed (deployment), TTL misconfigured, memory pressure evicting entries, or new products flooding in (catalog import). Expect latency to increase shortly after a sustained spike.",
-      "type": "timeseries",
+      "title": "Pricing Cache Hit Rate",
+      "description": "LEADING INDICATOR. Ratio of cache hits to total pricing lookups in GetFinalPrice. Healthy cache shows 90%+. A drop means: cache was flushed (deployment), TTL misconfigured, memory pressure evicting entries, or new products flooding in (catalog import). Expect latency to increase shortly after a sustained drop. Starts at 0% on cold start and climbs as the cache warms.",
+      "type": "gauge",
       "id": 7,
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "orange", "mode": "fixed" },
-          "custom": { "fillOpacity": 20, "lineWidth": 2, "spanNulls": false },
-          "unit": "opm"
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 90 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "rate(pricing_cache_miss_total[5m]) * 60",
-          "legendFormat": "Cache misses/min",
+          "expr": "rate(pricing_cache_hit_total[1m]) / (rate(pricing_cache_hit_total[1m]) + rate(pricing_cache_miss_total[1m])) * 100",
+          "legendFormat": "Cache hit %",
           "refId": "A"
         }
       ]
     },
     {
-      "title": "Cache Misses vs Search Volume",
-      "description": "Overlay of cache misses and search throughput. If both rise together, it's normal — more searches means more pricing calls. If cache misses spike while search volume is flat, the cache is degraded (flush, eviction, TTL issue).",
+      "title": "Cache Hit Rate vs Search Volume",
+      "description": "Overlay of cache hit rate and search throughput. A stable high hit rate during rising search volume means the cache is healthy. If hit rate drops while search volume is flat, the cache is degraded (flush, eviction, TTL issue). On cold start, expect the hit rate to climb from 0% as the cache warms.",
       "type": "timeseries",
       "id": 8,
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
-          "custom": { "fillOpacity": 15, "lineWidth": 2, "spanNulls": false },
-          "unit": "opm"
+          "custom": { "fillOpacity": 15, "lineWidth": 2, "spanNulls": false }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Cache misses/min" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+            "matcher": { "id": "byName", "options": "Cache hit %" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } },
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "unit", "value": "percent" }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "Searches/min" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } },
+              { "id": "unit", "value": "opm" }
+            ]
           }
         ]
       },
       "targets": [
         {
-          "expr": "rate(pricing_cache_miss_total[5m]) * 60",
-          "legendFormat": "Cache misses/min",
+          "expr": "rate(pricing_cache_hit_total[1m]) / (rate(pricing_cache_hit_total[1m]) + rate(pricing_cache_miss_total[1m])) * 100",
+          "legendFormat": "Cache hit %",
           "refId": "A"
         },
         {
@@ -278,8 +293,8 @@
       "type": "row"
     },
     {
-      "title": "5xx — Flow Endpoints vs Total",
-      "description": "Compares 5xx rate on search/product routes against total 5xx. If flow errors spike but total stays flat, the issue is isolated to the instrumented pipeline. If both spike, it's a site-wide outage (DB down, infrastructure issue).",
+      "title": "5xx — Search & Product Flow",
+      "description": "Error rate on the Search → View Product flow endpoints (/search, /catalog/searchtermautocomplete, product detail pages). A spike isolated here while site-wide errors stay flat means the flow is broken, not the whole app.",
       "type": "timeseries",
       "id": 9,
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
@@ -296,28 +311,28 @@
             "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
           },
           {
-            "matcher": { "id": "byName", "options": "Total 5xx/s" },
+            "matcher": { "id": "byName", "options": "Site-wide 5xx/s" },
             "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
           }
         ]
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\".*(search|product).*\"}[1m]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\"/search/|catalog/searchtermautocomplete|\\{SeName\\}\"}[1m]))",
           "legendFormat": "Flow 5xx/s",
           "refId": "A"
         },
         {
           "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[1m]))",
-          "legendFormat": "Total 5xx/s",
+          "legendFormat": "Site-wide 5xx/s",
           "refId": "B"
         }
       ]
     },
     {
-      "title": "Flow Error Percentage",
-      "description": "Percentage of requests to search/product endpoints returning 5xx. Green <1%, yellow 1-5%, red >5%. A non-zero value here warrants investigation — check the traces section below to find the failing span.",
-      "type": "stat",
+      "title": "Flow Error %",
+      "description": "Percentage of Search → View Product requests returning 5xx. Green <1%, yellow 1-5%, red >5%.",
+      "type": "gauge",
       "id": 10,
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -333,13 +348,14 @@
             ]
           },
           "unit": "percent",
-          "min": 0
+          "min": 0,
+          "max": 100
         },
         "overrides": []
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\".*(search|product).*\"}[5m])) / sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search|product).*\"}[5m])) * 100",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\"/search/|catalog/searchtermautocomplete|\\{SeName\\}\"}[1m])) / sum(rate(http_server_request_duration_seconds_count{http_route=~\"/search/|catalog/searchtermautocomplete|\\{SeName\\}\"}[1m])) * 100",
           "legendFormat": "Flow error %",
           "refId": "A"
         }
@@ -481,7 +497,7 @@
     {
       "title": "Runtime Health",
       "collapsed": true,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 58 },
       "id": 105,
       "type": "row",
       "panels": [
@@ -490,7 +506,7 @@
           "description": "Memory used by the .NET GC. A steadily growing heap without plateaus indicates a memory leak. Correlate with deployment times.",
           "type": "timeseries",
           "id": 12,
-          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 53 },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 59 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "fieldConfig": {
             "defaults": {
@@ -513,7 +529,7 @@
           "description": "GC collection rate by generation. Frequent Gen2 collections = memory pressure, possible large object allocation issues.",
           "type": "timeseries",
           "id": 13,
-          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 53 },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 59 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "fieldConfig": {
             "defaults": {
@@ -536,7 +552,7 @@
           "description": "Active threads and work item queue. Growing queue with stable thread count = pool saturation, requests are waiting. May correlate with latency spikes.",
           "type": "timeseries",
           "id": 14,
-          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 53 },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 59 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "fieldConfig": {
             "defaults": {

@@ -172,3 +172,18 @@ In nopCommerce, when controllers call service methods directly (such as `SearchP
 
 **Summary:**
 Direct controller-to-service calls make it harder to achieve consistent, centralized observability compared to HTTP middleware or event-driven flows.
+
+
+## Load testing and performance monitoring in nopCommerce
+
+````bash
+k6 run -e BASE_URL=http://localhost:5000 loadtest/search-browse.js
+````
+
+````bash
+Otlp__Endpoint=http://localhost:4317 dotnet run --project src/Presentation/Nop.Web
+````
+
+````bash
+docker compose up jaeger otel-collector prometheus grafana nopcommerce_database -d
+````

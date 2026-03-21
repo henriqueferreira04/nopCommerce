@@ -9,4 +9,8 @@ public static class NopServicesMetrics
     public static readonly Counter<long> PricingCacheMiss =
         Meter.CreateCounter<long>("pricing_cache_miss",
             description: "Number of pricing cache misses in GetFinalPrice");
+
+    public static readonly Counter<long> PricingCacheHit =
+        Meter.CreateCounter<long>("pricing_cache_hit",
+            description: "Number of pricing cache hits in GetFinalPrice");
 }
