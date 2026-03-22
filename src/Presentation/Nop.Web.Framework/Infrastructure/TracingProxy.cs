@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -91,6 +92,9 @@ public class TracingProxy<TInterface> : DispatchProxy where TInterface : class
     {
         var activity = _activitySource.StartActivity($"{_serviceName}.{targetMethod.Name}");
 
+        if (activity != null)
+            SetSafeTags(activity, targetMethod, args);
+
         try
         {
             var result = targetMethod.Invoke(_target, args);
@@ -168,5 +172,46 @@ public class TracingProxy<TInterface> : DispatchProxy where TInterface : class
             activity?.Stop();
             activity?.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Auto-tags spans with safe (non-PII) parameter values.
+    /// Only primitives, booleans, and enums are tagged — strings and objects are excluded.
+    /// </summary>
+    private static void SetSafeTags(Activity activity, MethodInfo method, object[] args)
+    {
+        var parameters = method.GetParameters();
+        for (var i = 0; i < parameters.Length && i < args.Length; i++)
+        {
+            var value = args[i];
+            if (value == null)
+                continue;
+
+            var paramType = Nullable.GetUnderlyingType(parameters[i].ParameterType)
+                            ?? parameters[i].ParameterType;
+
+            if (paramType == typeof(int) || paramType == typeof(long) ||
+                paramType == typeof(bool) || paramType == typeof(decimal) ||
+                paramType.IsEnum)
+            {
+                activity.SetTag(ToTagName(parameters[i].Name), value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Converts camelCase parameter names to dot.separated tag names.
+    /// e.g. "categoryId" → "category.id", "pageSize" → "page.size"
+    /// </summary>
+    private static string ToTagName(string paramName)
+    {
+        var sb = new StringBuilder(paramName.Length + 4);
+        for (var i = 0; i < paramName.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(paramName[i]))
+                sb.Append('.');
+            sb.Append(char.ToLowerInvariant(paramName[i]));
+        }
+        return sb.ToString();
     }
 }

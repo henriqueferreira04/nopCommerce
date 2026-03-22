@@ -112,6 +112,9 @@ public partial class NopStartup : INopStartup
         //helpers classes
         services.AddScoped<ISummernoteHelper, SummernoteHelper>();
 
+        //tracing: register ActivitySource for TracingMiddleware
+        services.AddSingleton(NopTelemetry.ActivitySource);
+
         //tracing: wrap factories with TracingProxy
         TracingProxy.AddTracing(services, NopTelemetry.ActivitySource,
             typeof(Factories.ICatalogModelFactory),

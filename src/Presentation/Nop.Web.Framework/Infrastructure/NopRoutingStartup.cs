@@ -29,6 +29,9 @@ public partial class NopRoutingStartup : INopStartup
         //add the RoutingMiddleware
         application.UseRouting();
 
+        //tracing: create a span for every MVC controller action (must be after UseRouting)
+        application.UseMiddleware<TracingMiddleware>();
+
         var commonConfig = Singleton<AppSettings>.Instance.Get<CommonConfig>();
         if (commonConfig.PermitLimit > 0)
             application.UseRateLimiter();

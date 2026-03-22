@@ -393,7 +393,7 @@
         {
           "queryType": "search",
           "service": "nopCommerce",
-          "operation": "Catalog.SearchAutoComplete",
+          "operation": "Catalog.SearchTermAutoComplete",
           "limit": 10,
           "refId": "C"
         }
@@ -442,7 +442,7 @@
         {
           "queryType": "search",
           "service": "nopCommerce",
-          "operation": "Catalog.ProductDetails",
+          "operation": "Product.ProductDetails",
           "limit": 10,
           "refId": "A"
         }
