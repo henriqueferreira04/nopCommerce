@@ -29,7 +29,6 @@ using Nop.Services.Stores;
 using Nop.Services.Tax;
 using Nop.Services.Vendors;
 using Nop.Web.Infrastructure.Cache;
-using Nop.Web.Infrastructure.Telemetry;
 using Nop.Web.Models.Catalog;
 using Nop.Web.Models.Common;
 using Nop.Web.Models.Media;
@@ -377,11 +376,7 @@ public partial class ProductModelFactory : IProductModelFactory
     /// </returns>
     protected virtual async Task<ProductPriceModel> PrepareProductPriceModelAsync(Product product, bool addPriceRangeFrom = false, bool forceRedirectionAfterAddingToCart = false)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Pricing.PrepareProductPrice");
-
         ArgumentNullException.ThrowIfNull(product);
-
-        activity?.SetTag("product.id", product.Id);
 
         var currentCurrency = await _workContext.GetWorkingCurrencyAsync();
 
@@ -1332,8 +1327,6 @@ public partial class ProductModelFactory : IProductModelFactory
         int? productThumbPictureSize = null, bool prepareSpecificationAttributes = false,
         bool forceRedirectionAfterAddingToCart = false)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareProductOverview");
-
         ArgumentNullException.ThrowIfNull(products);
 
         var models = new List<ProductOverviewModel>();
@@ -1373,8 +1366,6 @@ public partial class ProductModelFactory : IProductModelFactory
 
             models.Add(model);
         }
-
-        activity?.SetTag("product.count", models.Count);
 
         return models;
     }
@@ -1447,11 +1438,7 @@ public partial class ProductModelFactory : IProductModelFactory
     public virtual async Task<ProductDetailsModel> PrepareProductDetailsModelAsync(Product product,
         ShoppingCartItem updatecartitem = null, bool isAssociatedProduct = false)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareProductDetails");
-
         ArgumentNullException.ThrowIfNull(product);
-
-        activity?.SetTag("product.id", product.Id);
 
         //standard properties
         var model = new ProductDetailsModel

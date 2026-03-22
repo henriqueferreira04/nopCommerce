@@ -16,7 +16,6 @@ using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Services.Shipping.Date;
 using Nop.Services.Stores;
-using Nop.Services.Infrastructure;
 using Nop.Services.Vendors;
 
 namespace Nop.Services.Catalog;
@@ -830,10 +829,6 @@ public partial class ProductService : IProductService
         bool showHidden = false,
         bool? overridePublished = null)
     {
-        using var activity = NopServicesTelemetry.ActivitySource.StartActivity("Search.SearchProducts");
-        activity?.SetTag("search.keywords", keywords);
-        activity?.SetTag("search.page_size", pageSize);
-
         //some databases don't support int.MaxValue
         if (pageSize == int.MaxValue)
             pageSize = int.MaxValue - 1;

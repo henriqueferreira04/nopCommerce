@@ -2,7 +2,9 @@
 using Nop.Web.Areas.Admin.Factories;
 using Nop.Web.Areas.Admin.Helpers;
 using Nop.Web.Framework.Factories;
+using Nop.Web.Framework.Infrastructure;
 using Nop.Web.Infrastructure.Installation;
+using Nop.Web.Infrastructure.Telemetry;
 
 namespace Nop.Web.Infrastructure;
 
@@ -109,6 +111,11 @@ public partial class NopStartup : INopStartup
 
         //helpers classes
         services.AddScoped<ISummernoteHelper, SummernoteHelper>();
+
+        //tracing: wrap factories with TracingProxy
+        TracingProxy.AddTracing(services, NopTelemetry.ActivitySource,
+            typeof(Factories.ICatalogModelFactory),
+            typeof(Factories.IProductModelFactory));
     }
 
     /// <summary>

@@ -17,6 +17,7 @@ using Nop.Services.Authentication.MultiFactor;
 using Nop.Services.Blogs;
 using Nop.Services.Caching;
 using Nop.Services.Catalog;
+using Nop.Services.Infrastructure;
 using Nop.Services.Cms;
 using Nop.Services.Common;
 using Nop.Services.Configuration;
@@ -318,6 +319,13 @@ public partial class NopStartup : INopStartup
         var useAutofac = appSettings.Get<CommonConfig>().UseAutofac;
         if (!useAutofac)
             services.AddScoped(typeof(Lazy<>), typeof(LazyInstance<>));
+
+        //tracing: wrap search-related services with TracingProxy
+        TracingProxy.AddTracing(services, NopServicesTelemetry.ActivitySource,
+            typeof(IProductService),
+            typeof(IPriceCalculationService),
+            typeof(ICategoryService),
+            typeof(ISpecificationAttributeService));
     }
 
     /// <summary>

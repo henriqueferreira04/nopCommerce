@@ -114,9 +114,6 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Category(int categoryId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Category");
-        activity?.SetTag("category.id", categoryId);
-
         var category = await _categoryService.GetCategoryByIdAsync(categoryId);
 
         if (!await CheckCategoryAvailabilityAsync(category))
@@ -141,9 +138,6 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetCategoryProducts(int categoryId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetCategoryProducts");
-        activity?.SetTag("category.id", categoryId);
-
         var category = await _categoryService.GetCategoryByIdAsync(categoryId);
 
         if (!await CheckCategoryAvailabilityAsync(category))
@@ -161,9 +155,6 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Manufacturer(int manufacturerId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Manufacturer");
-        activity?.SetTag("manufacturer.id", manufacturerId);
-
         var manufacturer = await _manufacturerService.GetManufacturerByIdAsync(manufacturerId);
 
         if (!await CheckManufacturerAvailabilityAsync(manufacturer))
@@ -189,9 +180,6 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetManufacturerProducts(int manufacturerId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetManufacturerProducts");
-        activity?.SetTag("manufacturer.id", manufacturerId);
-
         var manufacturer = await _manufacturerService.GetManufacturerByIdAsync(manufacturerId);
 
         if (!await CheckManufacturerAvailabilityAsync(manufacturer))
@@ -216,9 +204,6 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Vendor(int vendorId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Vendor");
-        activity?.SetTag("vendor.id", vendorId);
-
         var vendor = await _vendorService.GetVendorByIdAsync(vendorId);
 
         if (!await CheckVendorAvailabilityAsync(vendor))
@@ -237,9 +222,6 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetVendorProducts(int vendorId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetVendorProducts");
-        activity?.SetTag("vendor.id", vendorId);
-
         var vendor = await _vendorService.GetVendorByIdAsync(vendorId);
 
         if (!await CheckVendorAvailabilityAsync(vendor))
@@ -278,9 +260,6 @@ public partial class CatalogController : BasePublicController
 
     public virtual async Task<IActionResult> ProductsByTag(int productTagId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.ProductsByTag");
-        activity?.SetTag("tag.id", productTagId);
-
         var productTag = await _productTagService.GetProductTagByIdAsync(productTagId);
         if (productTag == null)
             return InvokeHttp404();
@@ -293,9 +272,6 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetTagProducts(int tagId, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetTagProducts");
-        activity?.SetTag("tag.id", tagId);
-
         var productTag = await _productTagService.GetProductTagByIdAsync(tagId);
         if (productTag == null)
             return NotFound();
@@ -318,8 +294,6 @@ public partial class CatalogController : BasePublicController
 
     public virtual async Task<IActionResult> NewProducts(CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.NewProducts");
-
         if (!_catalogSettings.NewProductsEnabled)
             return InvokeHttp404();
 
@@ -334,8 +308,6 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> GetNewProducts(CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.GetNewProducts");
-
         if (!_catalogSettings.NewProductsEnabled)
             return NotFound();
 
@@ -389,12 +361,8 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> Search(SearchModel model, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.Search");
-
         if (model == null)
             model = new SearchModel();
-
-        activity?.SetTag("search.has_query", !string.IsNullOrWhiteSpace(model.q));
 
         model = await _catalogModelFactory.PrepareSearchModelAsync(model, command);
 
@@ -414,8 +382,6 @@ public partial class CatalogController : BasePublicController
     [CheckLanguageSeoCode(ignore: true)]
     public virtual async Task<IActionResult> SearchTermAutoComplete(string term, int categoryId)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchAutoComplete");
-
         if (string.IsNullOrWhiteSpace(term))
             return Content("");
 
@@ -423,9 +389,6 @@ public partial class CatalogController : BasePublicController
 
         if (string.IsNullOrWhiteSpace(term) || term.Length < _catalogSettings.ProductSearchTermMinimumLength)
             return Content("");
-
-        activity?.SetTag("search.term_length", term.Length);
-        activity?.SetTag("search.category_id", categoryId);
 
         //products
         var productNumber = _catalogSettings.ProductSearchAutoCompleteNumberOfProducts > 0 ?
@@ -444,8 +407,6 @@ public partial class CatalogController : BasePublicController
             visibleIndividuallyOnly: true,
             pageSize: productNumber);
 
-        activity?.SetTag("search.results_count", products.TotalCount);
-
         var showLinkToResultSearch = _catalogSettings.ShowLinkToAllResultInSearchAutoComplete && (products.TotalCount > productNumber);
 
         var models = (await _productModelFactory.PrepareProductOverviewModelsAsync(products, false, _catalogSettings.ShowProductImagesInSearchAutoComplete, _mediaSettings.AutoCompleteSearchThumbPictureSize)).ToList();
@@ -459,12 +420,8 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> SearchProducts(SearchModel searchModel, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchProducts");
-
         if (searchModel == null)
             searchModel = new SearchModel();
-
-        activity?.SetTag("search.has_query", !string.IsNullOrWhiteSpace(searchModel.q));
 
         var model = await _catalogModelFactory.PrepareSearchProductsModelAsync(searchModel, command);
 
@@ -557,8 +514,6 @@ public partial class CatalogController : BasePublicController
     [SaveLastContinueShoppingPage]
     public virtual async Task<IActionResult> SearchByFilterLevelValues(SearchFilterLevelValueModel model, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchByFilterLevelValues");
-
         if (!_filterLevelSettings.FilterLevelEnabled)
             return RedirectToRoute(NopRouteNames.General.HOMEPAGE);
         
@@ -573,8 +528,6 @@ public partial class CatalogController : BasePublicController
     [HttpPost]
     public virtual async Task<IActionResult> SearchProductsByFilterLevelValues(SearchFilterLevelValueModel searchModel, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.SearchProductsByFilterLevelValues");
-
         if (searchModel == null)
             searchModel = new SearchFilterLevelValueModel();
 

@@ -22,7 +22,6 @@ using Nop.Services.Vendors;
 using Nop.Web.Framework.Events;
 using Nop.Web.Framework.Mvc.Routing;
 using Nop.Web.Infrastructure.Cache;
-using Nop.Web.Infrastructure.Telemetry;
 using Nop.Web.Models.Catalog;
 using Nop.Web.Models.Media;
 
@@ -545,13 +544,9 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<CategoryModel> PrepareCategoryModelAsync(Category category, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareCategoryModel");
-
         ArgumentNullException.ThrowIfNull(category);
 
         ArgumentNullException.ThrowIfNull(command);
-
-        activity?.SetTag("category.id", category.Id);
 
         var model = new CategoryModel
         {
@@ -834,13 +829,9 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<ManufacturerModel> PrepareManufacturerModelAsync(Manufacturer manufacturer, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareManufacturerModel");
-
         ArgumentNullException.ThrowIfNull(manufacturer);
 
         ArgumentNullException.ThrowIfNull(command);
-
-        activity?.SetTag("manufacturer.id", manufacturer.Id);
 
         var model = new ManufacturerModel
         {
@@ -1545,8 +1536,6 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<SearchModel> PrepareSearchModelAsync(SearchModel model, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Catalog.PrepareSearchModel");
-
         ArgumentNullException.ThrowIfNull(model);
 
         ArgumentNullException.ThrowIfNull(command);
@@ -1652,8 +1641,6 @@ public partial class CatalogModelFactory : ICatalogModelFactory
     /// </returns>
     public virtual async Task<CatalogProductsModel> PrepareSearchProductsModelAsync(SearchModel searchModel, CatalogProductsCommand command)
     {
-        using var activity = NopTelemetry.ActivitySource.StartActivity("Search.PrepareSearchProducts");
-
         ArgumentNullException.ThrowIfNull(command);
 
         var model = new CatalogProductsModel

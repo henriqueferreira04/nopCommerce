@@ -341,13 +341,7 @@ public partial class PriceCalculationService : IPriceCalculationService
         DateTime? rentalStartDate,
         DateTime? rentalEndDate)
     {
-        using var activity = NopServicesTelemetry.ActivitySource.StartActivity("Pricing.GetFinalPrice");
-
         ArgumentNullException.ThrowIfNull(product);
-
-        activity?.SetTag("product.id", product.Id);
-        activity?.SetTag("pricing.include_discounts", includeDiscounts);
-        activity?.SetTag("pricing.quantity", quantity);
 
         var cacheKey = _staticCacheManager.PrepareKeyForDefaultCache(NopCatalogDefaults.ProductPriceCacheKey,
             product,
@@ -418,8 +412,6 @@ public partial class PriceCalculationService : IPriceCalculationService
 
             return (priceWithoutDiscount, price, appliedDiscountAmount, discounts);
         });
-
-        activity?.SetTag("cache.hit", cacheHit);
 
         if (!cacheHit)
             NopServicesMetrics.PricingCacheMiss.Add(1);
