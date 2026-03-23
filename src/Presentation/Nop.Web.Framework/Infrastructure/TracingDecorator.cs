@@ -7,15 +7,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Nop.Web.Framework.Infrastructure;
 
 /// <summary>
-/// Registers TracingProxy decoration on existing service registrations.
+/// Registers TracingDecorator decoration on existing service registrations.
 /// </summary>
-public static class TracingProxy
+public static class TracingDecorator
 {
-    private static readonly MethodInfo _createProxyMethod = typeof(TracingProxy)
+    private static readonly MethodInfo _createProxyMethod = typeof(TracingDecorator)
         .GetMethod(nameof(CreateProxy), BindingFlags.NonPublic | BindingFlags.Static);
 
     /// <summary>
-    /// Wraps existing service registrations with TracingProxy so every interface method call
+    /// Wraps existing service registrations with TracingDecorator so every interface method call
     /// creates a trace span. Existing registrations stay untouched — they are re-registered
     /// under their implementation type, and the interface resolves via a proxy wrapper.
     /// </summary>
@@ -61,7 +61,7 @@ public static class TracingProxy
     private static TInterface CreateProxy<TInterface>(object target, ActivitySource activitySource, string serviceName)
         where TInterface : class
     {
-        return TracingProxy<TInterface>.Wrap((TInterface)target, activitySource, serviceName);
+        return TracingDecorator<TInterface>.Wrap((TInterface)target, activitySource, serviceName);
     }
 }
 
@@ -69,7 +69,7 @@ public static class TracingProxy
 /// A DispatchProxy that automatically creates trace spans for every method call on a wrapped interface.
 /// Used at the DI registration level to instrument service/factory interfaces without modifying business logic.
 /// </summary>
-public class TracingProxy<TInterface> : DispatchProxy where TInterface : class
+public class TracingDecorator<TInterface> : DispatchProxy where TInterface : class
 {
     private TInterface _target;
     private ActivitySource _activitySource;
@@ -80,8 +80,8 @@ public class TracingProxy<TInterface> : DispatchProxy where TInterface : class
     /// </summary>
     public static TInterface Wrap(TInterface target, ActivitySource activitySource, string serviceName)
     {
-        var proxy = Create<TInterface, TracingProxy<TInterface>>();
-        var tracingProxy = proxy as TracingProxy<TInterface>;
+        var proxy = Create<TInterface, TracingDecorator<TInterface>>();
+        var tracingProxy = proxy as TracingDecorator<TInterface>;
         tracingProxy._target = target;
         tracingProxy._activitySource = activitySource;
         tracingProxy._serviceName = serviceName;
@@ -131,7 +131,7 @@ public class TracingProxy<TInterface> : DispatchProxy where TInterface : class
 
         // For Task<T> — need to preserve the generic return type
         var resultType = returnType.GetGenericArguments()[0];
-        var method = typeof(TracingProxy<TInterface>)
+        var method = typeof(TracingDecorator<TInterface>)
             .GetMethod(nameof(WrapTaskOfT), BindingFlags.NonPublic | BindingFlags.Static)
             .MakeGenericMethod(resultType);
 

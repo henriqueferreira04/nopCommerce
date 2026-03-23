@@ -320,8 +320,8 @@ public partial class NopStartup : INopStartup
         if (!useAutofac)
             services.AddScoped(typeof(Lazy<>), typeof(LazyInstance<>));
 
-        //tracing: wrap search-related services with TracingProxy
-        TracingProxy.AddTracing(services, NopServicesTelemetry.ActivitySource,
+        //tracing: wrap search-related services with TracingDecorator
+        TracingDecorator.AddTracing(services, NopServicesTelemetry.ActivitySource,
             typeof(IProductService),
             typeof(IPriceCalculationService),
             typeof(ICategoryService),

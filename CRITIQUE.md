@@ -1,189 +1,23 @@
-## nopCommerce Layered Architecture
+# Critique
 
-nopCommerce uses a classic layered architecture with clear dependency rules:
+## What Helped and What Hindered Instrumentation
 
-### Layers (from lowest to highest)
+NopCommerce's consistent use of dependency injection via interfaces was the single biggest enabler for instrumentation. Every service is registered as an interface (IProductService, ICatalogModelFactory, etc.), which made it possible to build a `TracingDecorator` using .NET's DispatchProxy. This approach decorates services at the DI boundary, wrapping interface calls with trace spans without modifying a single line of business logic. If services had been registered as concrete classes, this technique would not have been possible.
 
-- **Nop.Core**: Domain entities, interfaces, and infrastructure. No dependencies on other project layers.
-- **Nop.Data**: Data access (repositories, migrations). Depends only on Nop.Core.
-- **Nop.Services**: Business logic/services. Depends on Nop.Core and Nop.Data.
-- **Nop.Web.Framework**: Shared MVC infrastructure for presentation and plugins. Depends on Nop.Core, Nop.Data, and Nop.Services.
-- **Nop.Web**: The main ASP.NET Core MVC web app (controllers, views, entry point). Depends on all above layers.
-- **Plugins**: Extension points, discovered and loaded at runtime. Depend on Nop.Web.Framework (and thus transitively on all lower layers).
+The ASP.NET Core middleware pipeline provided a natural insertion point for controller-level tracing. Adding `TracingMiddleware` required only a single UseMiddleware call that creates Controller.Action spans for every MVC request. The existing pipeline architecture meant no controllers or routes needed modification. Additionally, the centralized DI registration in NopStartup.cs files made it straightforward to identify which services to wrap and where to place the TracingDecorator.AddTracing() calls, keeping all instrumentation wiring in one place rather than scattered across the codebase.
 
-### Dependency Rules
+On the other hand, two aspects of the architecture made instrumentation harder. First, service methods tend to do too much internally. Methods like SearchProductsAsync call into category, specification, and pricing services within a single method body. My initial approach was exactly this, manually adding Activity.StartActivity() calls inside individual service methods. This worked, but it scattered tracing code throughout business logic and coupled observability to implementation details. That experience motivated the shift to the `TracingDecorator` approach, which moves all tracing to the DI boundary and keeps business logic untouched.
 
-- Lower layers never reference higher ones (e.g., Nop.Core knows nothing about HTTP or MVC).
-- Services use repositories from Nop.Data, not direct DB access.
-- Plugins extend via interfaces and events, not by modifying core code.
-- Presentation (Nop.Web) depends on all lower layers, but not vice versa.
+Second, IStaticCacheManager.GetAsync uses a callback pattern, it takes a factory lambda that only executes on a cache miss. Whether the cache hit or missed is only knowable inside the calling method (by checking if the lambda ran), not at the interface boundary. A `TracingDecorator` around IStaticCacheManager could see that GetAsync was called, but cannot distinguish hits from misses. This forced the pricing cache metrics (pricing_cache_hit / pricing_cache_miss) to be added manually inside PriceCalculationService.cs, making it the only place in the project where business logic had to be touched for observability.
 
-This structure enforces separation of concerns, extensibility, and testability throughout the application.
-## IEventPublisher
+## Architectural Recommendations
 
-`IEventPublisher` in nopCommerce is an in-process event bus / pub-sub dispatcher.
+If making architectural decisions on this project going forward, the most impactful change for observability would be redesigning `IStaticCacheManager.GetAsync` to expose whether each call was a cache hit or miss. The current signature returns `T` directly and hides the hit/miss signal inside a `MemoryCache.GetOrCreate` lambda, making it impossible for any decorator or proxy to distinguish cached results from computed ones. There are 52 cache calls across the catalog services and 34 in the factories — 86 total in the catalog flow alone. The manual approach used in `PriceCalculationService` (explicit hit/miss counters inside the calling method) does not scale to all of them. If `GetAsync` returned a wrapper like `CacheResult<T>` with a `Hit` property, a single decorator around `IStaticCacheManager` could automatically emit cache hit/miss metrics and tag trace spans for every cached call in the system, without touching any business logic. This would turn the one-off manual instrumentation in `PriceCalculationService` into a system-wide capability.
 
-It is used to publish an event object and dispatch it to all registered handlers for that event type.
+## Surgical Changes
 
-### How it works
+The instrumentation was designed to stay as close to the infrastructure boundary as possible, avoiding modifications to business logic. The core tracing mechanism, `TracingDecorator` and `TracingMiddleware`, was built as new infrastructure files that do not touch any existing code. `TracingDecorator` operates entirely at the DI registration level, intercepting service calls through DispatchProxy without the wrapped services being aware of it. `TracingMiddleware` plugs into the existing middleware pipeline and extracts controller and action names from route values that are already available on the request.
 
-When code calls:
+The OpenTelemetry SDK was configured in Program.cs, the application's entry point, registering the ActivitySource instances and Meter for export via OTLP. The NopStartup.cs files in both Nop.Web and Nop.Web.Framework received TracingDecorator.AddTracing() calls placed after the existing service registrations for 4 services and 2 factories. These calls wrap the already-registered services with the tracing proxy, the original registrations remain untouched.
 
-```csharp
-await eventPublisher.PublishAsync(new SomeEvent(...));
-```
-
-the `EventPublisher` resolves all registered consumers of:
-
-```csharp
-IConsumer<SomeEvent>
-```
-
-and invokes their:
-
-```csharp
-HandleEventAsync(SomeEvent eventMessage)
-```
-
-method one by one.
-
-### Important details
-
-- It does not send events to an external queue or broker.
-- It does not use RabbitMQ, Kafka, or a background worker system.
-- It runs in memory inside the same application process.
-- Consumers are discovered at startup by scanning loaded assemblies for classes implementing `IConsumer<T>`.
-- Those consumers are registered in dependency injection.
-- At runtime, `IEventPublisher` asks DI for all matching consumers for the published event type.
-- All matching handlers are executed, not just the first one.
-- Handlers are executed sequentially, not in parallel.
-- Processing can stop early only if the event implements `IStopProcessingEvent` and sets `StopProcessing = true`.
-
-### Mental model
-
-- Event = "something happened"
-- `IEventPublisher` = dispatcher
-- `IConsumer<TEvent>` = subscriber/handler
-
-### End-to-end example: EmailSubscribedEvent
-
-The event object is defined in [src/Libraries/Nop.Core/Domain/Messages/EmailSubscribedEvent.cs](src/Libraries/Nop.Core/Domain/Messages/EmailSubscribedEvent.cs).
-
-The newsletter flow decides whether to publish the subscribe event in [src/Libraries/Nop.Services/Messages/NewsLetterSubscriptionService.cs](src/Libraries/Nop.Services/Messages/NewsLetterSubscriptionService.cs):
-
-```csharp
-if (isSubscribe)
-	await _eventPublisher.PublishNewsLetterSubscribeAsync(subscription);
-```
-
-That helper method lives in [src/Libraries/Nop.Services/Messages/EventPublisherExtensions.cs](src/Libraries/Nop.Services/Messages/EventPublisherExtensions.cs) and creates the event:
-
-```csharp
-await eventPublisher.PublishAsync(new EmailSubscribedEvent(subscription));
-```
-
-The dispatch itself happens in [src/Libraries/Nop.Services/Events/EventPublisher.cs](src/Libraries/Nop.Services/Events/EventPublisher.cs), which resolves all:
-
-```csharp
-IConsumer<EmailSubscribedEvent>
-```
-
-and invokes each handler sequentially.
-
-Two real consumers of this event are:
-
-- [src/Plugins/Nop.Plugin.Misc.Brevo/Services/EventConsumer.cs](src/Plugins/Nop.Plugin.Misc.Brevo/Services/EventConsumer.cs)
-- [src/Plugins/Nop.Plugin.Misc.Omnisend/Infrastructure/EventConsumer.cs](src/Plugins/Nop.Plugin.Misc.Omnisend/Infrastructure/EventConsumer.cs)
-
-Brevo handles it by subscribing the contact:
-
-```csharp
-public async Task HandleEventAsync(EmailSubscribedEvent eventMessage)
-{
-	if (!BrevoManager.IsConfigured(_brevoSettings))
-		return;
-
-	await _brevoEmailManager.SubscribeAsync(eventMessage.Subscription);
-}
-```
-
-Omnisend handles it by updating or creating the contact:
-
-```csharp
-public async Task HandleEventAsync(EmailSubscribedEvent eventMessage)
-{
-	if (!_omnisendService.IsConfigured)
-		return;
-
-	await _omnisendService.UpdateOrCreateContactAsync(eventMessage.Subscription, true);
-}
-```
-
-Flow summary:
-
-1. Newsletter service publishes `EmailSubscribedEvent`.
-2. `EventPublisher` resolves all `IConsumer<EmailSubscribedEvent>` handlers.
-3. Brevo consumer runs.
-4. Omnisend consumer runs.
-5. Any other registered consumer for the same event would also run.
-
-So `IEventPublisher` decouples the code that raises the event from the plugin code that reacts to it.
-
-
-
-## Middleware
-
-There are multiple middleware components in nopCommerce, they sit between the web server and the MVC pipeline, and can inspect/modify requests and responses.
-
-They are good for observability purposes as well as in IEventPublisher scenarios where you want to publish an event for every request or response.
-
-
-| Layer        | Project/Namespace         | Responsibility                              |
-|--------------|--------------------------|----------------------------------------------|
-| Middleware   | Nop.Web.Framework, Plugins | Cross-cutting concerns (auth, logging, etc.) |
-| Presentation | Nop.Web                  | Controllers, Views, MVC logic                |
-| Service      | Nop.Services             | Business logic, event publishing             |
-| Data Access  | Nop.Data                 | Database access, repositories                |
-| Core         | Nop.Core                 | Domain entities, interfaces, infrastructure  |
-
-
-## Observability Challenges in Data Access
-
-In nopCommerce, observability for data access is less centralized and more difficult to implement than in other layers:
-
-- Repository methods (in `Nop.Data`) are called directly from services, with no universal decorator or middleware for database operations.
-- To log queries, measure execution time, or track errors, you must either:
-  - Add logging code to every repository method (repetitive and error-prone), or
-  - Implement a custom base repository or decorator pattern (not provided out of the box).
-- There is no single, central place for data access observability like there is for HTTP requests (middleware) or events (`IEventPublisher`).
-- For consistent observability, you would need to create a custom solution (e.g., a base repository with logging, or use EF Core interceptors) to monitor all database operations.
-
-**Summary:**
-Observability at the data access layer requires extra effort and custom infrastructure, making it a weak spot compared to the middleware and event layers.
-
-## Observability Challenges in Direct Service Calls
-
-In nopCommerce, when controllers call service methods directly (such as `SearchProductsAsync` in `IProductService`), observability becomes more difficult:
-
-- There is no central place (like middleware or `IEventPublisher`) to capture metrics, logs, or traces for these operations.
-- You must instrument each service method individually to add observability, which is repetitive and easy to miss.
-- This can lead to inconsistent monitoring and blind spots in business logic flows.
-- Adding a decorator or aspect-oriented approach could help, but is not provided out of the box.
-
-**Summary:**
-Direct controller-to-service calls make it harder to achieve consistent, centralized observability compared to HTTP middleware or event-driven flows.
-
-
-## Load testing and performance monitoring in nopCommerce
-
-````bash
-k6 run -e BASE_URL=http://localhost:5000 loadtest/search-browse.js
-````
-
-````bash
-Otlp__Endpoint=http://localhost:4317 dotnet run --project src/Presentation/Nop.Web
-````
-
-````bash
-docker compose up jaeger otel-collector prometheus grafana nopcommerce_database -d
-````
+The only places where existing application logic was modified were CatalogController.cs and PriceCalculationService.cs. In the controller, SearchPerformed and SearchNoResults counter increments were added at the point where the search result count is already available, no new logic was needed, just the metric calls at an existing decision point. In PriceCalculationService, PricingCacheHit and PricingCacheMiss counters were added at the existing cache branch. This was the only unavoidable business-logic change, because the cache manager's callback pattern hides the hit/miss signal inside the calling method — a proxy around IStaticCacheManager cannot distinguish hits from misses. The metrics had to be placed where the hit-or-miss decision is actually made.

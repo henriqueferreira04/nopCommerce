@@ -115,8 +115,8 @@ public partial class NopStartup : INopStartup
         //tracing: register ActivitySource for TracingMiddleware
         services.AddSingleton(NopTelemetry.ActivitySource);
 
-        //tracing: wrap factories with TracingProxy
-        TracingProxy.AddTracing(services, NopTelemetry.ActivitySource,
+        //tracing: wrap factories with TracingDecorator
+        TracingDecorator.AddTracing(services, NopTelemetry.ActivitySource,
             typeof(Factories.ICatalogModelFactory),
             typeof(Factories.IProductModelFactory));
     }
