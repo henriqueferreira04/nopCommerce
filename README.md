@@ -10,26 +10,29 @@ OpenTelemetry tracing and metrics instrumentation for nopCommerce, an open-sourc
 
 ### Layered Architecture
 
-nopCommerce follows a classic layered architecture with strict dependency rules — lower layers never reference higher ones:
+NopCommerce uses a classic layered architecture with clear dependency rules:
 
-| Layer | Project | Role |
-|-------|---------|------|
-| Core | Nop.Core | Domain entities, interfaces, infrastructure. No dependencies on other layers. |
-| Data | Nop.Data | Data access via Linq2Db, migrations. Depends only on Core. |
-| Services | Nop.Services | Business logic. Depends on Core and Data. |
-| Framework | Nop.Web.Framework | Shared MVC infrastructure, filters, tag helpers. Depends on Core, Data, Services. |
-| Presentation | Nop.Web | ASP.NET Core MVC app — controllers, views, entry point. Depends on all above. |
-| Plugins | Nop.Plugin.* | Runtime-discovered extensions. Depend on Web.Framework. |
+### Layers (from lowest to highest)
 
-### Interface-Based Dependency Injection
+- **Nop.Core**: Domain entities, interfaces, and infrastructure. No dependencies on other project layers.
+- **Nop.Data**: Data access (repositories, migrations). Depends only on Nop.Core.
+- **Nop.Services**: Business logic/services. Depends on Nop.Core and Nop.Data.
+- **Nop.Web.Framework**: Shared MVC infrastructure for presentation and plugins. Depends on Nop.Core, Nop.Data, and Nop.Services.
+- **Nop.Web**: The main ASP.NET Core MVC web app (controllers, views, entry point). Depends on all above layers.
+- **Plugins**: Extension points, discovered and loaded at runtime. Depend on Nop.Web.Framework (and thus transitively on all lower layers).
 
-Nearly every service in nopCommerce is registered through an interface (IProductService, ICategoryService, IPriceCalculationService, etc.). This is significant for observability because interface-based registration enables the decorator pattern — any service can be wrapped with additional behavior (logging, tracing, metrics) at the DI boundary without modifying the service itself. If services were registered as concrete classes, this kind of non-invasive instrumentation would not be possible.
+### Dependency Rules
+
+- Lower layers never reference higher ones (e.g., Nop.Core knows nothing about HTTP or MVC).
+- Services use repositories from Nop.Data, not direct DB access.
+- Plugins extend via interfaces and events, not by modifying core code.
+- Presentation (Nop.Web) depends on all lower layers, but not vice versa.
 
 ### IEventPublisher — Internal Event Bus
 
-nopCommerce uses an in-process pub/sub dispatcher called IEventPublisher. When code calls `PublishAsync(new SomeEvent(...))`, the EventPublisher resolves all registered `IConsumer<SomeEvent>` handlers from DI and invokes them sequentially. It does not use an external message broker — everything runs in-memory within the same process. Consumers are discovered at startup by assembly scanning.
+nopCommerce uses an in-process pub/sub dispatcher called IEventPublisher. When code calls `PublishAsync(new SomeEvent(...))`, the EventPublisher resolves all registered `IConsumer<SomeEvent>` handlers from DI and invokes them sequentially. It does not use an external message broker, everything runs in-memory within the same process. Consumers are discovered at startup by assembly scanning.
 
-This is a natural instrumentation boundary for flows that rely on events (e.g., order placement triggers inventory and email events). The search flow does not use IEventPublisher — it calls services directly from controllers and factories.
+This is a natural instrumentation boundary for flows that rely on events (e.g., order placement triggers inventory and email events). The search flow does not use IEventPublisher, it calls services directly from controllers and factories.
 
 ### Where Observability Is Easy
 
@@ -39,13 +42,7 @@ This is a natural instrumentation boundary for flows that rely on events (e.g., 
 
 ### Where Observability Is Hard
 
-- **Cache hit/miss visibility** — IStaticCacheManager.GetAsync uses a callback pattern: it takes a factory lambda that only executes on a cache miss. Whether the cache hit or missed is only knowable inside the calling method (by checking if the lambda ran), not at the interface boundary. A decorator around IStaticCacheManager could see that GetAsync was called, but cannot distinguish hits from misses. Any cache hit/miss observability must be added manually inside the service methods that use this pattern.
 - **Monolithic service methods** — Methods like SearchProductsAsync call into multiple other services (category, specification, pricing) within a single method body. Understanding the internal breakdown of work requires instrumenting each sub-service individually.
-- **Data access layer** — There is no universal decorator or middleware for database operations. Observability at this layer depends on external auto-instrumentation (e.g., OpenTelemetry SQL client libraries) rather than anything nopCommerce provides.
-
-### Structural Recommendation
-
-The most impactful change for observability would be redesigning the cache manager to expose hit/miss signals at the interface level (e.g., returning a result object that indicates whether the value was cached). This would allow cache behavior to be observed through decorators without needing manual metrics inside business logic.
 
 ---
 
