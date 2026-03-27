@@ -262,7 +262,7 @@ k6 run loadtest/search-browse.js
 
 **Profile:** 20 virtual users, 3 minutes sustained, with 30s ramp-up/down.
 
-**Script:** `loadtest/search-browse.js`
+**Script:** [loadtest/search-browse.js](loadtest/search-browse.js)
 
 ---
 
@@ -275,3 +275,9 @@ LLM was used as an interactive collaborator throughout every phase of this proje
 - **Implementer** — Helped draft and refine code (e.g., TracingMiddleware, decorator, metrics instrumentation, Docker Compose setup, and k6 tests).
 - **Debugger** — Troubleshooting, collector configuration.
 - **Documenter** — Drafting README sections.
+
+
+## Organizational Documents
+
+- [CRITIQUE.md](CRITIQUE.md)
+- [Presentation](./AS%20-%201Project%20Presentation.pdf)
